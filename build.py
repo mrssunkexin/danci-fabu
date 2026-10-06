@@ -1,50 +1,31 @@
 #!/usr/bin/env python3
 """生成抖音单词卡发布文案网页。读 05_正式交付 里每个视频的同名 TXT，原文不改，输出 index.html。
 用法: python3 build.py    然后 git add -A && git commit -m 更新 && git push"""
-import argparse, csv, html, json, os, re, datetime
-from pathlib import Path
+import csv, html, json, os, re, datetime
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-parser = argparse.ArgumentParser(description="生成账号发布文案网页")
-parser.add_argument("--account", choices=["账号2_小面包"])
-parser.add_argument("--out", default="index.html")
-args = parser.parse_args()
-SRC = os.path.join(ROOT, args.account, "05_正式交付") if args.account else os.path.join(ROOT, "05_正式交付")
-page_title = "小面包 发布文案" if args.account else "单词卡发布文案"
-storage_key = "xiaomianbao_danci_done" if args.account else "danci_done"
-if args.account:
-    items = []
-    paths = sorted((p for p in Path(SRC).iterdir() if p.is_file() and p.suffix == ".txt"),
-                   key=lambda p: (-p.stat().st_mtime_ns, p.name))
-    for p in paths:
-        t = p.read_text(encoding="utf-8").rstrip("\n")
-        m = re.match(r"标题：(.*)\n文案：\n(.*)\n标签：(.*)$", t, re.S)
-        if not m:
-            raise SystemExit(f"格式不符: {p}")
-        items.append({"id": "账号2", "file": p.stem, "title": m.group(1).strip(),
-                      "body": m.group(2).strip(), "tags": m.group(3).strip()})
-else:
-    order = []
-    for r in csv.DictReader(open(os.path.join(ROOT, "02_标准内容库", "分类表.tsv"), encoding="utf-8"), delimiter="\t"):
-        if (r["主题ID"], r["主题标题"]) not in order:
-            order.append((r["主题ID"], r["主题标题"]))
-    items = []
-    for tid, title in sorted(order, reverse=True):            # 按主题编号倒序，最新的排最前
-        p = os.path.join(SRC, title + ".txt")
-        if not os.path.exists(p):
-            continue                                        # 只放已放行、正式交付里有的
-        t = open(p, encoding="utf-8").read().rstrip("\n")
-        m = re.match(r"标题：(.*)\n文案：\n(.*)\n标签：(.*)$", t, re.S)
-        if not m:
-            raise SystemExit(f"格式不符: {p}")
-        items.append({"id": tid, "title": m.group(1).strip(), "body": m.group(2).strip(), "tags": m.group(3).strip()})
-    known = {i["title"] for i in items}
-    for p in sorted(os.listdir(SRC)):                    # 正式交付里不在分类表的加更版本（如有声版），排在最前
-        if not p.endswith(".txt") or p[:-4] in known:
-            continue
-        t = open(os.path.join(SRC, p), encoding="utf-8").read().rstrip("\n")
-        m = re.match(r"标题：(.*)\n文案：\n(.*)\n标签：(.*)$", t, re.S)
-        if m:
-            items.insert(0, {"id": "加更", "file": p[:-4], "title": m.group(1).strip(), "body": m.group(2).strip(), "tags": m.group(3).strip()})
+SRC = os.path.join(ROOT, "05_正式交付")
+order = []
+for r in csv.DictReader(open(os.path.join(ROOT, "02_标准内容库", "分类表.tsv"), encoding="utf-8"), delimiter="\t"):
+    if (r["主题ID"], r["主题标题"]) not in order:
+        order.append((r["主题ID"], r["主题标题"]))
+items = []
+for tid, title in sorted(order, reverse=True):            # 按主题编号倒序，最新的排最前
+    p = os.path.join(SRC, title + ".txt")
+    if not os.path.exists(p):
+        continue                                        # 只放已放行、正式交付里有的
+    t = open(p, encoding="utf-8").read().rstrip("\n")
+    m = re.match(r"标题：(.*)\n文案：\n(.*)\n标签：(.*)$", t, re.S)
+    if not m:
+        raise SystemExit(f"格式不符: {p}")
+    items.append({"id": tid, "title": m.group(1).strip(), "body": m.group(2).strip(), "tags": m.group(3).strip()})
+known = {i["title"] for i in items}
+for p in sorted(os.listdir(SRC)):                    # 正式交付里不在分类表的加更版本（如有声版），排在最前
+    if not p.endswith(".txt") or p[:-4] in known:
+        continue
+    t = open(os.path.join(SRC, p), encoding="utf-8").read().rstrip("\n")
+    m = re.match(r"标题：(.*)\n文案：\n(.*)\n标签：(.*)$", t, re.S)
+    if m:
+        items.insert(0, {"id": "加更", "file": p[:-4], "title": m.group(1).strip(), "body": m.group(2).strip(), "tags": m.group(3).strip()})
 if not items:
     raise SystemExit("没有可发布的文案")
 now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -55,7 +36,7 @@ cards = "\n".join(f'''<article class="card" data-id="{i.get("file", i["id"])}">
 <section><div class="lab"><span>标签</span><button class="copy" type="button">复制</button></div><div class="text">{html.escape(i["tags"])}</div></section>
 <button class="copy all" type="button" data-all="1">复制文案＋标签</button>
 </article>''' for i in items)
-page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>{page_title}</title><style>
+page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>单词卡发布文案</title><style>
 :root{{--bg:#fbf6ee;--card:#fff;--fg:#2b2520;--muted:#7a6c5e;--line:#eadfcf;--accent:#f0683c;--accent-fg:#fff;--soft:#fff0e4;--done:#eef3ea}}
 @media (prefers-color-scheme:dark){{:root{{--bg:#181512;--card:#221e1a;--fg:#efe9e2;--muted:#a89a8b;--line:#3a322a;--accent:#ff8a5c;--accent-fg:#1a120c;--soft:#33261d;--done:#1f2a20;color-scheme:dark}}}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 "PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif}}
@@ -73,14 +54,14 @@ h1{{font-size:22px;margin:0}}header p{{margin:4px 0 0;color:var(--muted);font-si
 .copy.ok{{background:#3aa08f;color:#fff}}.copy.all{{width:100%;padding:10px;font-size:14px}}
 .hide{{display:none}}
 </style></head><body><div class="wrap">
-<header><h1>{page_title}</h1><p>共 {len(items)} 条，最新的在最上面 · 更新于 {now}</p></header>
+<header><h1>单词卡发布文案</h1><p>共 {len(items)} 条，最新的在最上面 · 更新于 {now}</p></header>
 <div class="tabs"><button type="button" data-f="all" aria-pressed="true">全部</button><button type="button" data-f="todo" aria-pressed="false">未发</button><button type="button" data-f="done" aria-pressed="false">已发</button></div>
 <main class="list">
 {cards}
 </main></div><script>
 function copyText(t){{if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(t);return new Promise(function(res,rej){{var a=document.createElement("textarea");a.value=t;a.style.position="fixed";a.style.opacity="0";document.body.appendChild(a);a.select();try{{document.execCommand("copy")?res():rej()}}catch(e){{rej(e)}}document.body.removeChild(a)}})}}
-var done={{}};try{{done=JSON.parse(localStorage.getItem("{storage_key}")||"{{}}")}}catch(e){{}}
-function save(){{try{{localStorage.setItem("{storage_key}",JSON.stringify(done))}}catch(e){{}}}}
+var done={{}};try{{done=JSON.parse(localStorage.getItem("danci_done")||"{{}}")}}catch(e){{}}
+function save(){{try{{localStorage.setItem("danci_done",JSON.stringify(done))}}catch(e){{}}}}
 var filter="all";
 function paint(){{document.querySelectorAll(".card").forEach(function(c){{var d=!!done[c.dataset.id];c.classList.toggle("done",d);c.querySelector(".mark").textContent=d?"已发 ✓":"标记已发";c.classList.toggle("hide",filter==="todo"&&d||filter==="done"&&!d)}})}}
 document.addEventListener("click",function(e){{var b=e.target.closest("button");if(!b)return;
@@ -91,7 +72,5 @@ if(b.classList.contains("copy")){{var t;if(b.dataset.all){{var s=card.querySelec
 var old=b.textContent;copyText(t).then(function(){{b.textContent="已复制 ✓";b.classList.add("ok")}},function(){{b.textContent="复制失败，请长按文字"}}).then(function(){{setTimeout(function(){{b.textContent=old;b.classList.remove("ok")}},1400)}})}}}});
 paint();
 </script></body></html>'''
-output = Path(__file__).resolve().parent / args.out
-output.parent.mkdir(parents=True, exist_ok=True)
-output.write_text(page, encoding="utf-8")
+open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"), "w", encoding="utf-8").write(page)
 print("已生成", len(items), "条:", " ".join(i["id"] for i in items))
