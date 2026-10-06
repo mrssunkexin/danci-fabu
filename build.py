@@ -18,11 +18,19 @@ for tid, title in sorted(order, reverse=True):            # 按主题编号倒�
     if not m:
         raise SystemExit(f"格式不符: {p}")
     items.append({"id": tid, "title": m.group(1).strip(), "body": m.group(2).strip(), "tags": m.group(3).strip()})
+known = {i["title"] for i in items}
+for p in sorted(os.listdir(SRC)):                    # 正式交付里不在分类表的加更版本（如有声版），排在最前
+    if not p.endswith(".txt") or p[:-4] in known:
+        continue
+    t = open(os.path.join(SRC, p), encoding="utf-8").read().rstrip("\n")
+    m = re.match(r"标题：(.*)\n文案：\n(.*)\n标签：(.*)$", t, re.S)
+    if m:
+        items.insert(0, {"id": "加更", "file": p[:-4], "title": m.group(1).strip(), "body": m.group(2).strip(), "tags": m.group(3).strip()})
 if not items:
     raise SystemExit("没有可发布的文案")
 now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-cards = "\n".join(f'''<article class="card" data-id="{i["id"]}">
-<div class="head"><span class="no">{i["id"]}</span><span class="name">{html.escape(i["title"])}.mp4</span><button class="mark" type="button">标记已发</button></div>
+cards = "\n".join(f'''<article class="card" data-id="{i.get("file", i["id"])}">
+<div class="head"><span class="no">{i["id"]}</span><span class="name">{html.escape(i.get("file", i["title"]))}.mp4</span><button class="mark" type="button">标记已发</button></div>
 <section><div class="lab"><span>标题</span><button class="copy" type="button">复制</button></div><div class="text">{html.escape(i["title"])}</div></section>
 <section><div class="lab"><span>文案</span><button class="copy" type="button">复制</button></div><div class="text">{html.escape(i["body"])}</div></section>
 <section><div class="lab"><span>标签</span><button class="copy" type="button">复制</button></div><div class="text">{html.escape(i["tags"])}</div></section>
