@@ -8,17 +8,31 @@ order = []
 for r in csv.DictReader(open(os.path.join(ROOT, "02_标准内容库", "分类表.tsv"), encoding="utf-8"), delimiter="\t"):
     if (r["主题ID"], r["主题标题"]) not in order:
         order.append((r["主题ID"], r["主题标题"]))
+# 同名主题（如 T01 与 T35 都叫“12个方位词”）按交付清单里该主题实际放行的文件名取 TXT
+released = {}
+REC = os.path.join(ROOT, "00_项目管理", "交付清单")
+for f in sorted(os.listdir(REC)):
+    if f.endswith(".json"):
+        rec = json.load(open(os.path.join(REC, f), encoding="utf-8"))
+        if rec.get("status") == "released" and rec.get("theme_id"):
+            for x in rec.get("files", []):
+                if x.endswith(".txt"):
+                    released[rec["theme_id"]] = os.path.basename(x)[:-4]
 items = []
 for tid, title in sorted(order, reverse=True):            # 按主题编号倒序，最新的排最前
-    p = os.path.join(SRC, title + ".txt")
+    stem = released.get(tid, title)
+    p = os.path.join(SRC, stem + ".txt")
     if not os.path.exists(p):
         continue                                        # 只放已放行、正式交付里有的
     t = open(p, encoding="utf-8").read().rstrip("\n")
     m = re.match(r"标题：(.*)\n文案：\n(.*)\n标签：(.*)$", t, re.S)
     if not m:
         raise SystemExit(f"格式不符: {p}")
-    items.append({"id": tid, "title": m.group(1).strip(), "body": m.group(2).strip(), "tags": m.group(3).strip()})
-known = {i["title"] for i in items}
+    item = {"id": tid, "title": m.group(1).strip(), "body": m.group(2).strip(), "tags": m.group(3).strip()}
+    if stem != title:
+        item["file"] = stem
+    items.append(item)
+known = {i.get("file", i["title"]) for i in items}
 for p in sorted(os.listdir(SRC)):                    # 正式交付里不在分类表的加更版本（如有声版），排在最前
     if not p.endswith(".txt") or p[:-4] in known:
         continue
